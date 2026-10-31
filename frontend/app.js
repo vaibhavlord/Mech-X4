@@ -1,5 +1,5 @@
 const API_BASE = window.location.port === "5500" ? "http://127.0.0.1:8000" : "";
-const state = { view: "overview", network: null, campaigns: [], lastScan: false, health: null };
+const state = { view: "overview", network: null, campaigns: [], scannedPRs: [], lastScan: false, health: null };
 const samplePRs = {
   pull_requests: [
     { id: 101, project: "alpha", author: "dev-one", title: "Improve error handling in parser", body: "Add explicit validation for malformed input and return a clear error message. Update the parser tests to cover invalid payloads.", created_at: "2026-10-31T20:10:00Z", account_age_days: 4 },
@@ -14,12 +14,25 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 const text = (value, fallback = "—") => value === undefined || value === null || value === "" ? fallback : String(value);
 const apiUrl = (path) => `${API_BASE}${path}`;
+function formatAPIError(value, fallback) {
+  if (Array.isArray(value)) return value.map((item) => formatAPIError(item, "Validation error")).join("; ");
+  if (value && typeof value === "object") {
+    const location = Array.isArray(value.loc) ? value.loc.join(".") : value.loc;
+    const message = value.msg || value.message;
+    if (location || message) return `${location ? `${location}: ` : ""}${text(message, "Validation error")}`;
+    return fallback;
+  }
+  return text(value, fallback);
+}
 
 async function request(path, options = {}) {
   const response = await fetch(apiUrl(path), { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
   let payload;
   try { payload = await response.json(); } catch { payload = {}; }
-  if (!response.ok) throw new Error(payload.detail || payload.message || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const detail = formatAPIError(payload.detail || payload.message, `Request failed (${response.status})`);
+    throw new Error(detail);
+  }
   return payload;
 }
 
@@ -95,10 +108,24 @@ async function evaluateContributor(event) { event.preventDefault(); const projec
 function renderCampaigns(campaigns) { const container = $("#campaign-results"); container.replaceChildren(); $("#campaign-count").textContent = `${campaigns.length} found`; if (!campaigns.length) { const empty = document.createElement("div"); empty.className = "result-placeholder compact"; const mark = document.createElement("span"); mark.className = "empty-mark"; mark.textContent = "⌁"; const title = document.createElement("strong"); title.textContent = "No campaigns found"; const note = document.createElement("p"); note.textContent = "The backend returned no coordinated campaigns for this batch."; empty.append(mark, title, note); container.append(empty); } campaigns.forEach((campaign) => { const card = document.createElement("article"); card.className = "campaign-card"; const header = document.createElement("div"); header.className = "campaign-card-header"; const titleBlock = document.createElement("div"); const eyebrow = document.createElement("h3"); eyebrow.textContent = "CAMPAIGN"; const id = document.createElement("div"); id.className = "campaign-id"; id.textContent = text(campaign.id); titleBlock.append(eyebrow, id); const score = document.createElement("span"); score.className = "similarity"; score.textContent = `${text(campaign.similarity_score, "0")} similarity`; header.append(titleBlock, score); const facts = document.createElement("div"); facts.className = "campaign-facts"; [ `${Array.isArray(campaign.pr_ids) ? campaign.pr_ids.length : 0} PRs`, `${text(campaign.project_count, "0")} projects`, `IDs: ${(campaign.pr_ids || []).map(text).join(", ") || "none"}` ].forEach((value) => { const fact = document.createElement("span"); fact.className = "fact"; fact.textContent = value; facts.append(fact); }); const evidence = document.createElement("div"); evidence.className = "campaign-evidence"; const evidenceTitle = document.createElement("h3"); evidenceTitle.textContent = "EVIDENCE"; evidence.append(evidenceTitle); (Array.isArray(campaign.evidence) ? campaign.evidence : []).forEach((item) => { const p = document.createElement("p"); p.textContent = text(item); evidence.append(p); }); card.append(header, facts, evidence); container.append(card); }); updateCampaignSelect(); renderOverview(); }
 function updateCampaignSelect() { const select = $("#campaign-select"); select.replaceChildren(); if (!state.campaigns.length) { const option = document.createElement("option"); option.value = ""; option.textContent = "No campaigns available"; select.append(option); $("#analyze-button").disabled = true; return; } state.campaigns.forEach((campaign, index) => { const option = document.createElement("option"); option.value = String(index); option.textContent = text(campaign.id, `Campaign ${index + 1}`); select.append(option); }); $("#analyze-button").disabled = false; }
 function loadSamples() { $("#pr-editor").value = JSON.stringify(samplePRs, null, 2); setAlert("scanner-alert", "Sample batch loaded. Send it to the backend when ready.", true); }
-async function scanContributions() { let payload; try { payload = JSON.parse($("#pr-editor").value); } catch { setAlert("scanner-alert", "The editor does not contain valid JSON."); return; } if (!payload || !Array.isArray(payload.pull_requests)) { setAlert("scanner-alert", "JSON must contain a pull_requests array."); return; } const button = $("#scan-button"); setBusy(button, true, "Scanning..."); setAlert("scanner-alert"); try { const result = await request("/api/scan", { method: "POST", body: JSON.stringify(payload) }); state.campaigns = Array.isArray(result.campaigns) ? result.campaigns : []; state.lastScan = true; renderCampaigns(state.campaigns); setAlert("scanner-alert", `Scan complete: ${text(result.total_prs, payload.pull_requests.length)} PRs analyzed.`, true); } catch (error) { setAlert("scanner-alert", error.message); } finally { setBusy(button, false); } }
+async function scanContributions() { let payload; try { payload = JSON.parse($("#pr-editor").value); } catch { setAlert("scanner-alert", "The editor does not contain valid JSON."); return; } if (!payload || !Array.isArray(payload.pull_requests)) { setAlert("scanner-alert", "JSON must contain a pull_requests array."); return; } const button = $("#scan-button"); setBusy(button, true, "Scanning..."); setAlert("scanner-alert"); try { const result = await request("/api/scan", { method: "POST", body: JSON.stringify(payload) }); state.scannedPRs = payload.pull_requests; state.campaigns = Array.isArray(result.campaigns) ? result.campaigns : []; state.lastScan = true; renderCampaigns(state.campaigns); setAlert("scanner-alert", `Scan complete: ${text(result.total_prs, payload.pull_requests.length)} PRs analyzed.`, true); } catch (error) { setAlert("scanner-alert", error.message); } finally { setBusy(button, false); } }
 
 function renderAssessment(result) { const container = $("#assessment-result"); container.className = "assessment-content"; container.replaceChildren(); $("#model-label").textContent = text(result.model, "Model unavailable"); const summary = document.createElement("p"); summary.className = "summary"; summary.textContent = text(result.summary, "No summary returned."); const meta = document.createElement("div"); meta.className = "assessment-meta"; const risk = document.createElement("span"); risk.className = "risk"; risk.textContent = `Risk: ${text(result.risk_level, "not returned")}`; const used = document.createElement("span"); used.textContent = result.used_model ? "Local model used" : "Model not used"; meta.append(risk, used); const block = document.createElement("section"); block.className = "evidence-block"; const title = document.createElement("h3"); title.textContent = "REFERENCED EVIDENCE"; block.append(title, safeList(result.evidence_referenced, "trusted")); container.append(summary, meta, block); }
-async function analyzeCampaign() { const index = Number($("#campaign-select").value); const campaign = state.campaigns[index]; if (!campaign) return; const button = $("#analyze-button"); setBusy(button, true, "Analyzing..."); setAlert("assessment-alert", "Gemma is reviewing the campaign evidence..."); try { const result = await request("/api/explain", { method: "POST", body: JSON.stringify({ evidence: campaign }) }); renderAssessment(result); setAlert("assessment-alert", "Assessment returned by the local model.", true); } catch (error) { setAlert("assessment-alert", `AI assessment unavailable: ${error.message}`); } finally { setBusy(button, false); } }
+function buildExplanationEvidence(campaign) {
+  if (!Array.isArray(campaign.pr_ids) || campaign.pr_ids.length === 0) throw new Error("The selected campaign has no PR IDs.");
+  const recordsById = new Map(state.scannedPRs.map((pr) => [pr?.id, pr]));
+  const matchedPRs = campaign.pr_ids.map((id) => recordsById.get(id));
+  if (matchedPRs.some((pr) => !pr)) throw new Error("Some PR records for the selected campaign are missing from the latest scan.");
+  if (!Number.isInteger(campaign.project_count) || campaign.project_count < 1) throw new Error("The selected campaign has an invalid project count.");
+  if (typeof campaign.similarity_score !== "number" || !Number.isFinite(campaign.similarity_score) || campaign.similarity_score < 0 || campaign.similarity_score > 1) throw new Error("The selected campaign has an invalid similarity score.");
+  const accountAges = matchedPRs.map((pr) => pr.account_age_days);
+  if (accountAges.some((age) => !Number.isInteger(age) || age < 0)) throw new Error("The selected campaign has invalid account age data.");
+  const timestamps = matchedPRs.map((pr) => Date.parse(pr.created_at));
+  if (timestamps.some((timestamp) => !Number.isFinite(timestamp))) throw new Error("The selected campaign has invalid PR timestamps.");
+  const timeWindowMinutes = (Math.max(...timestamps) - Math.min(...timestamps)) / 60000;
+  return { pr_ids: [...campaign.pr_ids], project_count: campaign.project_count, similarity_score: campaign.similarity_score, account_ages: accountAges, time_window_minutes: timeWindowMinutes };
+}
+async function analyzeCampaign() { const index = Number($("#campaign-select").value); const campaign = state.campaigns[index]; if (!campaign) return; let evidence; try { evidence = buildExplanationEvidence(campaign); } catch (error) { setAlert("assessment-alert", error.message); return; } const button = $("#analyze-button"); setBusy(button, true, "Analyzing..."); setAlert("assessment-alert", "Gemma is reviewing the campaign evidence..."); try { const result = await request("/api/explain", { method: "POST", body: JSON.stringify({ evidence }) }); renderAssessment(result); setAlert("assessment-alert", "Assessment returned by the local model.", true); } catch (error) { setAlert("assessment-alert", `AI assessment unavailable: ${error.message}`); } finally { setBusy(button, false); } }
 
 async function refreshCurrent() { await checkHealth(); if (state.view === "overview" || state.view === "network") await loadNetwork(); }
 $$("[data-view]").forEach((button) => button.addEventListener("click", () => showView(button.dataset.view)));
