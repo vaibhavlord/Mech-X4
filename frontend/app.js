@@ -48,7 +48,17 @@ function setBusy(button, busy, busyLabel) {
 function safeList(values, className = "") {
   const list = document.createElement("ul"); list.className = `evidence-list ${className}`.trim();
   if (!Array.isArray(values) || values.length === 0) { const empty = document.createElement("li"); empty.className = "empty-evidence"; empty.textContent = "No evidence returned."; list.append(empty); return list; }
-  values.forEach((value) => { const item = document.createElement("li"); item.textContent = text(value); list.append(item); }); return list;
+  values.forEach((value) => { const item = document.createElement("li"); item.textContent = value && typeof value === "object" ? JSON.stringify(value) : text(value); list.append(item); }); return list;
+}
+function renderSignalList(signals, signalType, className = "") {
+  const projectNames = new Map((state.network?.projects || []).map((project) => [project.id, project.name]));
+  const readableSignals = (Array.isArray(signals) ? signals : []).map((signal) => {
+    const projectId = text(signal?.project);
+    const projectName = projectNames.get(signal?.project);
+    const projectLabel = projectName ? `${projectName} (${projectId})` : projectId;
+    return `${projectLabel} — ${signalType} for ${text(signal?.contributor)} — ${text(signal?.reason, "No reason provided.")}`;
+  });
+  return safeList(readableSignals, className);
 }
 function showView(view) {
   state.view = view;
@@ -101,7 +111,8 @@ async function checkHealth() { try { const result = await request("/api/health")
 function renderReview(result) {
   const container = $("#review-result"); container.className = "review-content"; container.replaceChildren(); $("#decision-badge").textContent = text(result.decision, "Unknown"); $("#decision-badge").className = `status-badge ${result.decision === "vouched" ? "online" : "neutral"}`;
   const intro = document.createElement("div"); intro.className = "decision-intro"; const decision = document.createElement("strong"); decision.textContent = text(result.decision, "Unknown"); const explanation = document.createElement("p"); explanation.textContent = "Decision based on signals trusted by the reviewing project."; intro.append(decision, explanation); container.append(intro);
-  [["Trusted vouches", result.trusted_vouches, "trusted"], ["Trusted denounces", result.trusted_denounces, "ignored"], ["Ignored untrusted denounces", result.ignored_denounces, "ignored"], ["Supporting evidence", result.evidence, "trusted"]].forEach(([heading, values, className]) => { const block = document.createElement("section"); block.className = "evidence-block"; const title = document.createElement("h3"); title.textContent = heading; block.append(title, safeList(values, className)); container.append(block); });
+  [["Trusted vouches", result.trusted_vouches, "vouch", "trusted"], ["Trusted denounces", result.trusted_denounces, "denounce", "ignored"], ["Ignored untrusted denounces", result.ignored_denounces, "denounce", "ignored"]].forEach(([heading, values, signalType, className]) => { const block = document.createElement("section"); block.className = "evidence-block"; const title = document.createElement("h3"); title.textContent = heading; block.append(title, renderSignalList(values, signalType, className)); container.append(block); });
+  const evidenceBlock = document.createElement("section"); evidenceBlock.className = "evidence-block"; const evidenceTitle = document.createElement("h3"); evidenceTitle.textContent = "Supporting evidence"; evidenceBlock.append(evidenceTitle, safeList(result.evidence, "trusted")); container.append(evidenceBlock);
 }
 async function evaluateContributor(event) { event.preventDefault(); const project = $("#review-project").value.trim(); const contributor = $("#review-contributor").value.trim(); if (!project || !contributor) { setAlert("review-alert", "Enter both a reviewing project and contributor ID."); return; } const button = $("#evaluate-button"); setBusy(button, true, "Evaluating..."); setAlert("review-alert"); try { const result = await request(`/api/evaluate?project=${encodeURIComponent(project)}&contributor=${encodeURIComponent(contributor)}`); renderReview(result); } catch (error) { setAlert("review-alert", error.message); } finally { setBusy(button, false); } }
 
