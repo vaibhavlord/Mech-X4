@@ -32,20 +32,11 @@ Why:
 To explain potentially coordinated PR campaigns using
 structured evidence rather than unsupported accusations.
 
-We will confirm real model execution and update this
-section through a PR before final submission.
+
 
 ## AI Coding Assistants
-- Google Antigravity  - backend coding
+- Codex  - backend coding
 - GitHub Copilot - frontend coding
 
 These are development assistants, not application APIs.
 
-## Intended Stack
-- Python
-- FastAPI
-- SQLite
-- React
-- Ollama
-- pytest
-- GitHub Actions
