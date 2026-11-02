@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#101619">
+  <meta name="theme-color" content="#F0F0F0">
   <title>TrustMesh | Contributor intelligence</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar" aria-label="Primary navigation">
+    <header class="sidebar" aria-label="Primary navigation">
       <div class="brand-lockup">
         <div class="brand-mark" aria-hidden="true">T</div>
         <div>
@@ -17,18 +17,16 @@
           <span>Open source intelligence</span>
         </div>
       </div>
-      <nav class="primary-nav" aria-label="Workspace">
+      <input class="menu-toggle" id="menu-toggle" type="checkbox" aria-label="Toggle navigation menu" aria-controls="workspace-nav">
+      <label class="menu-label" for="menu-toggle"><span>Menu</span><span class="menu-symbol" aria-hidden="true"></span></label>
+      <nav class="primary-nav" id="workspace-nav" aria-label="Workspace">
         <button class="nav-item active" type="button" data-view="overview" aria-current="page"><span class="nav-icon">◈</span>Overview</button>
         <button class="nav-item" type="button" data-view="network"><span class="nav-icon">⌘</span>Trust network</button>
         <button class="nav-item" type="button" data-view="review"><span class="nav-icon">◎</span>Contributor review</button>
         <button class="nav-item" type="button" data-view="scanner"><span class="nav-icon">⌁</span>Campaign scanner</button>
-        <button class="nav-item" type="button" data-view="assessment"><span class="nav-icon">✦</span>AI assessment</button>
+        <button class="nav-item nav-cta" type="button" data-view="assessment"><span class="nav-icon">✦</span>AI assessment</button>
       </nav>
-      <div class="sidebar-footer">
-        <span class="eyebrow">LOCAL WORKSPACE</span>
-        <span class="connection-label"><span class="status-dot" id="sidebar-status-dot"></span><span id="sidebar-status">Checking API</span></span>
-      </div>
-    </aside>
+    </header>
 
     <main class="main-content">
       <header class="topbar">
@@ -43,7 +41,7 @@
         <section class="view active" id="view-overview" data-view-panel="overview" aria-labelledby="overview-heading">
           <div class="view-heading">
             <div><span class="eyebrow">NETWORK OPERATIONS</span><h1 id="overview-heading">Overview</h1><p>Monitor trust signals and coordinated contribution activity across your network.</p></div>
-            <button class="button button-primary" id="seed-button" type="button"><span aria-hidden="true">+</span> Load demo data</button>
+            <button class="button button-primary" id="seed-button" type="button">Load demo data</button>
           </div>
           <div class="alert-region" id="overview-alert" role="status" aria-live="polite"></div>
           <div class="stat-grid" aria-label="Network statistics">
@@ -80,6 +78,10 @@
           <div class="assessment-layout"><article class="panel form-panel"><div class="panel-header"><div><span class="eyebrow">CAMPAIGN INPUT</span><h2>Choose a campaign</h2></div></div><label for="campaign-select">Detected campaign</label><select id="campaign-select"><option value="">No campaigns available</option></select><span class="field-hint">Results come from the latest backend scan.</span><button class="button button-primary full-width" id="analyze-button" type="button" disabled>Analyze with Gemma</button><div class="alert-region" id="assessment-alert" role="status" aria-live="polite"></div></article><article class="panel assessment-result-panel"><div class="panel-header"><div><span class="eyebrow">MODEL OUTPUT</span><h2>Assessment</h2></div><span class="model-label" id="model-label">No model run</span></div><div id="assessment-result" class="result-placeholder"><span class="empty-mark">✦</span><strong>No assessment yet</strong><p>Select a detected campaign and ask Gemma to assess its evidence.</p></div></article></div>
         </section>
       </div>
+      <footer class="sidebar-footer">
+        <div><span class="eyebrow">TRUSTMESH</span><span class="footer-caption">Open source intelligence</span></div>
+        <div class="footer-status"><span class="eyebrow">LOCAL WORKSPACE</span><span class="connection-label"><span class="status-dot" id="sidebar-status-dot"></span><span id="sidebar-status">Checking API</span></span></div>
+      </footer>
     </main>
   </div>
   <script src="app.js"></script>
